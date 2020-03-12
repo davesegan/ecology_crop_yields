@@ -1,0 +1,198 @@
+---
+title: "Ecology Assignment 2"
+author: "David Segan"
+date: "3/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(janitor)
+library(stargazer)
+```
+
+#### 1. Patterns in yield over time
+
+```{r, fig.cap = "**Figure 1:** *The above chart illustrates crop yields in bushels per hectare for barley, corn, oats, and sorghum from 1866 - 2018.*"}
+yield <- read_csv("grain_2020.csv")
+
+yield_plot <- yield %>% 
+  select("year", "commodity", "yield")
+
+ggplot(yield_plot, aes(y = yield,
+                       x = year)) +
+  geom_line(aes(color = commodity), show.legend = FALSE) +
+  facet_wrap(~commodity) +
+  labs(title = "Crop yields (1866 - 2018)",
+       x = "Year",
+       y = "Yield (bushels/hectare)") +
+  theme_update()
+  
+```
+Starting in approximately 1940 yields for all four crops began to grow at a linear rate. The constant yield before 1940 suggest a **linear with a lower plateau growth model**.
+
+##### Extra credit
+```{r}
+
+change_point = 1940
+
+barley_df_pw <- yield_plot %>% 
+  filter(commodity == "Barley") %>% 
+  mutate(diff = year-change_point) %>% 
+  mutate(dummy = ifelse(year>=1940, 1, 0)) %>% 
+  mutate(after1939 = dummy*diff)
+
+barley_model_pw <- lm(yield ~ year + after1939, data = barley_df_pw)
+
+predict_df_pw <- predict(barley_model_pw, barley_df_pw)
+
+full_df_pw <- data.frame(barley_df_pw, predict_df_pw)
+
+ggplot() +
+  geom_line(data = barley_df_pw,
+             aes(x = year,
+                 y = yield),
+             color = "coral",
+             size = 1, 
+             alpha = 1) +
+  geom_line(data = full_df_pw,
+            aes(x = year,
+                y = predict_df_pw)) +
+  theme_light() +
+  labs(title = "Barley crop yields (1866 - 2018)",
+       x = "Year",
+       y = "Yield (bushels/hectare)")
+
+
+# barley_pre1940 <- yield_plot %>% 
+#   filter(commodity == "Barley") %>% 
+#   filter(year < 1940)
+# 
+# barley_post1940 <- yield_plot %>% 
+#   filter(commodity == "Barley") %>% 
+#   filter(year >= 1940)
+
+# barley_df <- yield_plot %>% 
+#   filter(commodity == "Barley") %>% 
+#   mutate(piecewise_by_1940 = ifelse(year>=1940, year, 1939))
+
+
+# yield <- yield_plot %>% 
+#   filter(commodity == "Barley") %>% 
+#   select(yield)
+# year <- 1866:2018
+# year1 <- 1866:1939
+# year2 <- 1940:2018
+# 
+# breaks <- year[which(year>=1920 & year <=1950)]
+
+# barley_model <- lm(yield ~ piecewise_by_1940, data = barley_df)
+# 
+# predict_df <- predict(barley_model, barley_df)
+# 
+# full_df <- data.frame(barley_df, predict_df)
+# 
+# ggplot() +
+#   geom_line(data = barley_df,
+#              aes(x = year,
+#                  y = yield),
+#              color = "coral",
+#              size = 1, 
+#              alpha = 1) +
+#   geom_line(data = full_df,
+#             aes(x = year,
+#                 y = predict_df)) +
+#   theme_light() +
+#   labs(title = "Barley crop yields (1866 - 2018)",
+#        x = "Year",
+#        y = "Yield (bushels/hectare)")
+# 
+
+
+# barley_model1 <- lm(yield ~ year, data = barley_pre1940)
+# 
+# barley_model2 <- lm(yield ~ year, data = barley_post1940)
+# 
+# plot(barley_model)
+# 
+# ggplot(barley_model, aes(x = year,
+#                          y = yield)) +
+#   geom_line()
+
+```
+
+```{r, results = "asis"}
+
+stargazer(barley_model_pw, type = "html")
+```
+
+#### 2. Fertilizer use
+
+```{r, fig.cap = "**Figure 2:** *The above chart illustrates fertilizer use intensity on corn, soybeans, and wheat crops from 1964 to 2016. The fertilizers include nitrogen, phosphate, and potassium.*"}
+fertilizer <- read_csv("fertilizer_2020.csv")
+
+ggplot(fertilizer, aes(y = kg_h,
+                       x = year)) +
+  geom_line(aes(color = fertilizer), alpha = .75, show.legend = TRUE) +
+  geom_point(aes(color = fertilizer), alpha = .75, size = 1, show.legend = FALSE) +
+  scale_color_manual(values = c("dodgerblue4", "darkorange1", "green4")) +
+  facet_wrap(~crop) +
+  labs(title = "Fertilizer use intensity (1964 - 2016)",
+       x = "Year",
+       y = "Fertilizer use (kilogram/hectare)",
+       color = "Fertilizer")
+```
+Current approximate ratios of fertilizer use presented as Nitrogen:Phosphate:Potassium are as follows.
+
+- Corn: 16:7:9
+- Soybeans: 2:6:9
+- Wheat: 2:1:1
+
+This suggests that nitrogen is the limiting nutrient for wheat and corn while potassium is the limiting nutrient for soybeans.
+
+### 3. Case study
+
+```{r, fig.cap = "**Figure 3:** *The above scatter plot illustrates the relationship between fertilizer use and corn yields from 1964 to 2016.The fertilizers include nitrogen, phosphate, and potassium.*"}
+
+corn_join <- inner_join(yield_plot, fertilizer,"year") %>% 
+  filter(crop == "Corn") %>% 
+  filter(commodity == "Corn") %>% 
+  select(-commodity)
+
+corn_plot <- ggplot(corn_join,aes(
+                    x = kg_h,
+                    y = yield)) +
+  geom_point(aes(color = fertilizer), alpha = .75) +
+  stat_smooth(aes(color = fertilizer), geom='line', alpha=0.5, se=FALSE) +
+  scale_color_manual(values = c("dodgerblue4", "darkorange1", "green4")) +
+  labs(title = "Impact of fertilizer use on corn yields (1964 - 2016)",
+       x = "Fertilizer use (kg/hectare)",
+       y = "Yield (bushels/hectare)",
+       color = "Fertilizer")
+  
+corn_plot
+```
+Phosphate usage has remained between 60 and 80 kg/hectare. Lack of data below 60 kg/h make it hard to fully understand but above 60 kg/h higher usage was not positively correlated with higher yields. Potassium usage rose up to approximately 90 kg/hectare and then remained constant. There is a positive relationship up until approximately 90 kg/hectare and then yields continued to rise while potassium usage remained the same. Nitrogen usage demonstrates a positive relationship with corn yields.
+
+##### Extra credit
+
+```{r}
+
+new_corn_df <- corn_join %>% 
+  pivot_wider(year:kg_h,
+              names_from = "fertilizer",
+              values_from = "kg_h")
+
+corn_yield_lm <- lm(yield ~ nitrogen + phosphate + potassium, data = new_corn_df)
+
+```
+
+```{r, results = "asis"}
+
+stargazer(corn_yield_lm, type = "html")
+
+```
+
+From 1964 to 2016, all three fertilizers are significant variables in explaining corn yields. However, phosphate and potassium are negatively correlated with yields. This is likely due to over fertilization and then a responsive decrease in fertilization while yields continued to rise. 
